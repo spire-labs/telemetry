@@ -1005,7 +1005,7 @@ dependencies = [
 [[package]]
 name = "rpc"
 version = "0.0.0"
-source = "git+https://github.com/spire-labs/rpc?branch=main#328d63d702d01db741979cd7a812f853efea9073"
+source = "git+https://github.com/spire-labs/rpc?tag=v0.0.1#328d63d702d01db741979cd7a812f853efea9073"
 dependencies = [
  "serde",
  "serde_json",
