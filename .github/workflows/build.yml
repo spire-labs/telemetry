@@ -1,0 +1,13 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    uses: spire-labs/workflows/.github/workflows/rust-check.yml@main
