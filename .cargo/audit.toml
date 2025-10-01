@@ -1,0 +1,4 @@
+[advisories]
+ignore = [
+  "RUSTSEC-2021-0046", # getting confused with the name of this crate
+]

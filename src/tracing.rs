@@ -11,9 +11,7 @@ use opentelemetry_sdk::{
     trace::TracerProviderBuilder,
 };
 use tracing_opentelemetry::OpenTelemetryLayer;
-use tracing_subscriber::{
-    EnvFilter, fmt, fmt::format::FmtSpan, layer::SubscriberExt, registry, util::SubscriberInitExt,
-};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, registry, util::SubscriberInitExt};
 
 pub struct Tracing;
 
@@ -21,10 +19,8 @@ impl Tracing {
     pub fn init(resource: Resource) -> Result<Self> {
         let console_logger = layer()
             .json()
-            .with_span_events(FmtSpan::CLOSE)
             .with_current_span(true)
             .flatten_event(true)
-            .with_writer(std::io::stdout)
             .with_target(true)
             .with_span_list(false);
 
