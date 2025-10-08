@@ -22,16 +22,10 @@ impl Telemetry {
     pub fn init(name: impl Into<Value>) -> Result<Self> {
         let resource = Resource::builder()
             .with_service_name(name)
-            .with_attributes(vec![
-                KeyValue::new(
-                    "service.commit",
-                    env::var("GITHUB_SHA").unwrap_or_else(|_| "dev".to_string()),
-                ),
-                KeyValue::new(
-                    "service.environment",
-                    env::var("ENVIRONMENT").unwrap_or_else(|_| "dev".to_string()),
-                ),
-            ])
+            .with_attributes(vec![KeyValue::new(
+                "service.commit",
+                env::var("GITHUB_SHA").unwrap_or_else(|_| "dev".to_string()),
+            )])
             .build();
 
         Ok(Self {
