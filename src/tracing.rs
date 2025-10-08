@@ -55,8 +55,8 @@ impl Tracing {
 
         registry()
             .with(env_filter)
-            .with(otel_logger)
             .with(otel_tracer)
+            .with(otel_logger)
             .with(console_logger)
             .init();
 
