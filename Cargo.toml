@@ -9,6 +9,7 @@ repository = "https://github.com/spire-labs/telemetry"
 version = "0.0.0"
 
 [dependencies]
+alloy = { version = "1.1.2", default-features = false, features = ["std", "k256"] }
 axum = { version = "0.7.9", features = ["macros"] }
 eyre = "0.6.12"
 futures-util = "0.3.31"
@@ -30,6 +31,7 @@ tower-http = { version = "0.6.2", features = [
   "metrics",
   "request-id",
 ] }
+thiserror = "1.0.69"
 
 [dev-dependencies]
 tokio = "1.28.2"
