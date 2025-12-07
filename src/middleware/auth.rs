@@ -90,10 +90,11 @@ where
             };
 
             let signer = match authenticate_signature(&parts.headers, &raw_body) {
-                Ok(address) => address,
+                Ok(Some(address)) => Some(address),
+                Ok(None) => None,
                 Err(error) => {
                     warn!(%error, middleware = "AuthenticatedJsonRpc", "Failed to authenticate request");
-                    return Ok(error.into_response());
+                    return Ok(create_response(&error.to_string()));
                 }
             };
 
@@ -109,11 +110,11 @@ where
 pub struct AuthenticatedJsonRpcRequest {
     raw_body: Bytes,
     json_rpc: JsonRpcRequest,
-    signer: Address,
+    signer: Option<Address>,
 }
 
 impl AuthenticatedJsonRpcRequest {
-    pub fn new(raw_body: Bytes, json_rpc: JsonRpcRequest, signer: Address) -> Self {
+    pub fn new(raw_body: Bytes, json_rpc: JsonRpcRequest, signer: Option<Address>) -> Self {
         Self {
             raw_body,
             json_rpc,
@@ -129,7 +130,7 @@ impl AuthenticatedJsonRpcRequest {
         &self.json_rpc
     }
 
-    pub fn signer(&self) -> Address {
+    pub fn signer(&self) -> Option<Address> {
         self.signer
     }
 }
@@ -142,8 +143,6 @@ pub fn get_authenticated_json_rpc_request<B>(
 
 #[derive(Debug, Error)]
 enum AuthenticatedJsonRpcError {
-    #[error("Missing X-Flashbots-Signature header")]
-    MissingSignatureHeader,
     #[error("Invalid X-Flashbots-Signature header encoding")]
     InvalidSignatureHeaderEncoding,
     #[error("Invalid X-Flashbots-Signature header format")]
@@ -158,19 +157,14 @@ enum AuthenticatedJsonRpcError {
     SignatureMismatch,
 }
 
-impl AuthenticatedJsonRpcError {
-    fn into_response(self) -> Response {
-        create_response(&self.to_string())
-    }
-}
-
 fn authenticate_signature(
     headers: &HeaderMap,
     raw_body: &[u8],
-) -> Result<Address, AuthenticatedJsonRpcError> {
-    let header_value = headers
-        .get(SIGNATURE_HEADER)
-        .ok_or(AuthenticatedJsonRpcError::MissingSignatureHeader)?;
+) -> Result<Option<Address>, AuthenticatedJsonRpcError> {
+    let header_value = match headers.get(SIGNATURE_HEADER) {
+        Some(value) => value,
+        None => return Ok(None),
+    };
 
     let header_str = header_value
         .to_str()
@@ -196,5 +190,5 @@ fn authenticate_signature(
         return Err(AuthenticatedJsonRpcError::SignatureMismatch);
     }
 
-    Ok(recovered_address)
+    Ok(Some(recovered_address))
 }
