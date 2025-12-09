@@ -1,6 +1,6 @@
 //! Middleware for counting the number of JSON-RPC method calls
 
-use crate::middleware::create_response;
+use crate::middleware::{create_response, Metadata};
 use axum::{
     body::{Body, to_bytes},
     http::Request,
@@ -65,11 +65,13 @@ where
         Box::pin(async move {
             let (parts, body) = request.into_parts();
 
-            let request = if let Some(json_rpc) = parts.extensions.get::<RpcRequest>() {
-                counter.add(
-                    1,
-                    &[KeyValue::new("method", json_rpc.method.to_lowercase())],
-                );
+            let request = if let Some(metadata) = parts.extensions.get::<Metadata>() {
+                if let Some(json_rpc) = &metadata.json_rpc {
+                    counter.add(
+                        1,
+                        &[KeyValue::new("method", json_rpc.method.to_lowercase())],
+                    );
+                }
 
                 Request::from_parts(parts, body)
             } else {

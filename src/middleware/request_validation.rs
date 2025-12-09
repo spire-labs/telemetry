@@ -8,7 +8,7 @@
 //! which may be a problem for performance / DoS attacks.
 //! Other layers may be used to enforce a size limit on the body.
 
-use crate::middleware::create_response;
+use crate::middleware::{create_response, with_metadata};
 use axum::{
     body::{Body, to_bytes},
     http::{Method, Request},
@@ -16,6 +16,7 @@ use axum::{
 };
 use futures_util::future::BoxFuture;
 use rpc::Request as RpcRequest;
+use tower_http::request_id::RequestId;
 use std::{
     convert::Infallible,
     task::{Context, Poll},
@@ -57,9 +58,22 @@ where
         Box::pin(async move {
             let (parts, body) = request.into_parts();
 
+            let trace_id = parts
+                .extensions
+                .get::<RequestId>()
+                .and_then(|id| id.header_value().to_str().ok())
+                .map(|s| s.to_string());
+
             if parts.method != Method::POST {
                 // Forward non-POST requests without validation
-                let request = Request::from_parts(parts, body);
+                let mut request = Request::from_parts(parts, body);
+                if let Some(trace_id) = trace_id {
+                    with_metadata(request.extensions_mut(), |metadata| {
+                        if metadata.trace_id.is_none() {
+                            metadata.trace_id = Some(trace_id);
+                        }
+                    });
+                }
                 return inner.call(request).await;
             }
 
@@ -75,9 +89,14 @@ where
                 let size = body.len();
                 let mut request = Request::from_parts(parts, Body::from(body));
 
-                // Insert deserialized type into extensions to save work in subsequent layers
-                request.extensions_mut().insert(json_rpc);
-                request.extensions_mut().insert(size);
+                // Insert parsed request and size into shared metadata for downstream layers.
+                with_metadata(request.extensions_mut(), |metadata| {
+                    metadata.json_rpc = Some(json_rpc);
+                    metadata.size = Some(size);
+                    if metadata.trace_id.is_none() {
+                        metadata.trace_id = trace_id.clone();
+                    }
+                });
 
                 let response = match inner.call(request).await {
                     Ok(response) => response,

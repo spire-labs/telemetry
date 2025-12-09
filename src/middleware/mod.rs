@@ -1,12 +1,12 @@
 mod auth;
+mod metadata;
 mod histogram;
 mod method_counter;
 mod request_validation;
 mod tracing;
 
-pub use auth::{
-    AuthenticatedJsonRpcLayer, AuthenticatedJsonRpcRequest, get_authenticated_json_rpc_request,
-};
+pub use auth::AuthenticatedJsonRpcLayer;
+pub use metadata::{Metadata, with_metadata};
 use axum::{
     body::Body,
     http::{StatusCode, header},

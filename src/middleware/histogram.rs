@@ -1,6 +1,6 @@
 //! Middleware for recording JSON-RPC method body size and latency
 
-use crate::middleware::create_response;
+use crate::middleware::{create_response, Metadata};
 use axum::{
     body::{Body, to_bytes},
     http::Request,
@@ -72,19 +72,20 @@ where
             let start = Instant::now();
             let (parts, body) = request.into_parts();
 
-            let (request, method) = if let Some(json_rpc) = parts.extensions.get::<RpcRequest>() {
-                (
-                    {
-                        if let Some(bytes_size) = parts.extensions.get::<usize>() {
-                            size.record(
-                                *bytes_size as u64,
-                                &[KeyValue::new("method", json_rpc.method.to_lowercase())],
-                            );
-                        }
-                        Request::from_parts(parts.clone(), body)
-                    },
-                    Some(json_rpc.method.to_lowercase()),
-                )
+            let (request, method) = if let Some(metadata) = parts.extensions.get::<Metadata>() {
+                let method = metadata
+                    .json_rpc
+                    .as_ref()
+                    .map(|json_rpc| json_rpc.method.to_lowercase());
+
+                if let (Some(method), Some(bytes_size)) = (method.as_ref(), metadata.size) {
+                    size.record(
+                        bytes_size as u64,
+                        &[KeyValue::new("method", method.to_string())],
+                    );
+                }
+
+                (Request::from_parts(parts.clone(), body), method)
             } else {
                 let bytes = match to_bytes(body, usize::MAX).await {
                     Ok(bytes) => bytes,

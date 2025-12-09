@@ -2,19 +2,16 @@
 //!
 //! This layer buffers JSON-RPC bodies (already validated upstream), authenticates
 //! Flashbots-style signatures from the `X-Flashbots-Signature` header, and stores
-//! the raw body, parsed request, and recovered signer in
-//! [`AuthenticatedJsonRpcRequest`] for downstream handlers.
+//! the recovered signer in request extensions for downstream handlers.
 
-use crate::middleware::create_response;
+use crate::middleware::{create_response, with_metadata};
 use alloy::primitives::{Address, Signature, eip191_hash_message, keccak256};
 use axum::{
-    body::{Body, Bytes, to_bytes},
+    body::{Body, to_bytes},
     http::{HeaderMap, Request},
     response::Response,
 };
 use futures_util::future::BoxFuture;
-use rpc::Request as JsonRpcRequest;
-use serde_json;
 use std::{
     convert::Infallible,
     str::FromStr,
@@ -69,26 +66,6 @@ where
                 }
             };
 
-            let (mut request, json_rpc) = if let Some(parsed) =
-                parts.extensions.get::<JsonRpcRequest>()
-            {
-                (
-                    Request::from_parts(parts.clone(), Body::from(raw_body.clone())),
-                    parsed.clone(),
-                )
-            } else {
-                match serde_json::from_slice::<JsonRpcRequest>(&raw_body) {
-                    Ok(parsed) => (
-                        Request::from_parts(parts.clone(), Body::from(raw_body.clone())),
-                        parsed,
-                    ),
-                    Err(error) => {
-                        warn!(%error, middleware = "AuthenticatedJsonRpc", "Failed to parse JSON-RPC payload");
-                        return Ok(create_response("Invalid JSON-RPC request"));
-                    }
-                }
-            };
-
             let signer = match authenticate_signature(&parts.headers, &raw_body) {
                 Ok(Some(address)) => Some(address),
                 Ok(None) => None,
@@ -98,47 +75,16 @@ where
                 }
             };
 
-            let extension = AuthenticatedJsonRpcRequest::new(raw_body.clone(), json_rpc, signer);
-            request.extensions_mut().insert(extension);
+            let mut request = Request::from_parts(parts, Body::from(raw_body));
+
+            // Store signer in shared metadata for downstream use.
+            with_metadata(request.extensions_mut(), |metadata| {
+                metadata.signer = signer;
+            });
 
             inner.call(request).await
         })
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct AuthenticatedJsonRpcRequest {
-    raw_body: Bytes,
-    json_rpc: JsonRpcRequest,
-    signer: Option<Address>,
-}
-
-impl AuthenticatedJsonRpcRequest {
-    pub fn new(raw_body: Bytes, json_rpc: JsonRpcRequest, signer: Option<Address>) -> Self {
-        Self {
-            raw_body,
-            json_rpc,
-            signer,
-        }
-    }
-
-    pub fn raw_body(&self) -> Bytes {
-        self.raw_body.clone()
-    }
-
-    pub fn json_rpc(&self) -> &JsonRpcRequest {
-        &self.json_rpc
-    }
-
-    pub fn signer(&self) -> Option<Address> {
-        self.signer
-    }
-}
-
-pub fn get_authenticated_json_rpc_request<B>(
-    request: &Request<B>,
-) -> Option<&AuthenticatedJsonRpcRequest> {
-    request.extensions().get::<AuthenticatedJsonRpcRequest>()
 }
 
 #[derive(Debug, Error)]
